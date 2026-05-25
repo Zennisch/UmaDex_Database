@@ -2,12 +2,11 @@ name: Daily Database Sync & Mirror
 
 on:
   schedule:
-    # Run daily at 03:00 UTC (12:00 PM JP/VN time)
-    - cron: '0 3 * * *'
-  workflow_dispatch: # Allow manual trigger from GitHub UI
+    - cron: "42 * * * *"
+  workflow_dispatch:
 
 permissions:
-  contents: write # Required to commit and push changes
+  contents: write
 
 jobs:
   sync:
@@ -22,7 +21,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-node: '20'
+          node-version: '20'
 
       - name: Run Synchronization Script
         run: node sync.js
