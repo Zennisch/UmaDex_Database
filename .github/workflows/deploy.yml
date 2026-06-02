@@ -34,4 +34,4 @@ jobs:
           commit_message: "chore: Auto-update database and game assets [skip ci]"
           commit_user_name: "UmaDex Sync Bot"
           commit_user_email: "actions@github.com"
-          file_pattern: "manifest.json data/umamusume/**/*.json images/umamusume/characters/thumb/*.png"
+          file_pattern: "manifest.json data/ images/"
