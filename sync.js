@@ -6,7 +6,7 @@ const GAMETORA_BASE_URL = "https://gametora.com";
 const OUTPUT_DIR = __dirname;
 
 // User Agent Configuration
-const repoUrl = "https://github.com/zennisch/umadex-database";
+const repoUrl = "https://github.com/zennisch/UmaDex_Database";
 const contactEmail = process.env.CONTACT_EMAIL || "";
 const USER_AGENT = `UmaDex-SyncBot/1.0 (+${repoUrl}${contactEmail ? `; ${contactEmail}` : ""})`;
 
