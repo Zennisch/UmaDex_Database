@@ -48,6 +48,80 @@ async function fetchWithRetry(url, isBinary = false, retries = 3) {
   }
 }
 
+function getManifestDataFiles(manifest) {
+  const files = new Set();
+
+  for (const [field, hash] of Object.entries(manifest)) {
+    if (typeof hash !== "string" || !hash) continue;
+    files.add(path.normalize(`${field}.${hash}.json`));
+  }
+
+  return files;
+}
+
+function removeEmptyDirectories(directory, rootDirectory) {
+  if (!fs.existsSync(directory)) return;
+
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      removeEmptyDirectories(path.join(directory, entry.name), rootDirectory);
+    }
+  }
+
+  if (directory === rootDirectory) return;
+  if (fs.readdirSync(directory).length === 0) {
+    fs.rmdirSync(directory);
+  }
+}
+
+function cleanupStaleDataFiles(manifest, syncedFiles) {
+  const dataRoot = path.join(OUTPUT_DIR, "data", "umamusume");
+  if (!fs.existsSync(dataRoot)) return;
+
+  const expectedFiles = getManifestDataFiles(manifest);
+  for (const file of syncedFiles) {
+    expectedFiles.add(path.normalize(file));
+  }
+
+  let removedCount = 0;
+
+  function visit(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const entryPath = path.join(directory, entry.name);
+
+      if (entry.isDirectory()) {
+        visit(entryPath);
+        continue;
+      }
+
+      const relativePath = path.normalize(path.relative(dataRoot, entryPath));
+      if (!expectedFiles.has(relativePath)) {
+        fs.unlinkSync(entryPath);
+        removedCount++;
+        console.log(`- Removed stale data file: ${path.join("data", "umamusume", relativePath)}`);
+      }
+    }
+  }
+
+  visit(dataRoot);
+  removeEmptyDirectories(dataRoot, dataRoot);
+  console.log(`- Stale data files removed: ${removedCount}`);
+}
+
+async function syncDbFile(file, syncedFiles) {
+  const relativeFile = path.normalize(`${file.field}.${file.hash}.json`);
+  const url = `${GAMETORA_BASE_URL}/data/umamusume/${relativeFile.replace(/\\/g, "/")}`;
+  const text = await fetchWithRetry(url, false);
+
+  const filePath = path.join(OUTPUT_DIR, "data", "umamusume", relativeFile);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, obfuscate(Buffer.from(text)));
+  syncedFiles.add(relativeFile);
+  console.log(`✓ ${relativeFile.replace(/\\/g, "/")} synchronized & obfuscated.`);
+
+  return text;
+}
+
 // Main Sync Function
 async function main() {
   console.log("Starting UmaDex Data Mirror Sync...");
@@ -66,31 +140,31 @@ async function main() {
     console.log("✓ Manifest synchronized and obfuscated.");
 
     // 2. Download and obfuscate DB JSON files
+    const syncedDataFiles = new Set();
     const dbFiles = [
-      { field: "characters", hash: manifest.characters, filename: "characters" },
-      { field: "character-cards", hash: manifest["character-cards"], filename: "character-cards" },
-      { field: "db-files/succession_relation", hash: manifest["db-files/succession_relation"], filename: "succession_relation" },
-      { field: "db-files/succession_relation_member", hash: manifest["db-files/succession_relation_member"], filename: "succession_relation_member" },
+      { field: "db-files/succession_relation", hash: manifest["db-files/succession_relation"] },
+      { field: "db-files/succession_relation_member", hash: manifest["db-files/succession_relation_member"] },
     ];
 
     for (const file of dbFiles) {
-      const url = `${GAMETORA_BASE_URL}/data/umamusume/${file.field}.${file.hash}.json`;
-      const text = await fetchWithRetry(url, false);
-      
-      // Save obfuscated JSON under data/umamusume/
-      const filePath = path.join(OUTPUT_DIR, "data", "umamusume", `${file.field}.${file.hash}.json`);
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, obfuscate(Buffer.from(text)));
-      console.log(`✓ DB File synchronized & obfuscated: ${file.field}`);
+      await syncDbFile(file, syncedDataFiles);
     }
 
     // 3. Cache character portrait thumbnail images
     console.log("Parsing character list for thumbnail image caching...");
-    const charactersText = await fetchWithRetry(`${GAMETORA_BASE_URL}/data/umamusume/characters.${manifest.characters}.json`, false);
+    const charactersText = await syncDbFile(
+      { field: "characters", hash: manifest.characters },
+      syncedDataFiles
+    );
     const characters = JSON.parse(charactersText);
 
-    const cardsText = await fetchWithRetry(`${GAMETORA_BASE_URL}/data/umamusume/character-cards.${manifest["character-cards"]}.json`, false);
+    const cardsText = await syncDbFile(
+      { field: "character-cards", hash: manifest["character-cards"] },
+      syncedDataFiles
+    );
     const cards = JSON.parse(cardsText);
+
+    cleanupStaleDataFiles(manifest, syncedDataFiles);
 
     // Pre-build char_id -> card_id map
     const charToCard = {};

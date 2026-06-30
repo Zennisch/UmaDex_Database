@@ -2,7 +2,7 @@ name: Daily Database Sync & Mirror
 
 on:
   schedule:
-    - cron: "42 * * * *"
+    - cron: "0 */12 * * *"
   workflow_dispatch:
 
 permissions:
