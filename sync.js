@@ -139,7 +139,7 @@ async function main() {
     fs.writeFileSync(manifestPath, obfuscate(Buffer.from(manifestText)));
     console.log("✓ Manifest synchronized and obfuscated.");
 
-    // 2. Download and obfuscate DB JSON files
+    // 2. Fetch & obfuscate DB JSON files
     const syncedDataFiles = new Set();
     const dbFiles = [
       { field: "db-files/succession_relation", hash: manifest["db-files/succession_relation"] },
@@ -150,22 +150,23 @@ async function main() {
       await syncDbFile(file, syncedDataFiles);
     }
 
-    // 3. Cache character portrait thumbnail images
-    console.log("Parsing character list for thumbnail image caching...");
     const charactersText = await syncDbFile(
       { field: "characters", hash: manifest.characters },
       syncedDataFiles
     );
-    const characters = JSON.parse(charactersText);
 
     const cardsText = await syncDbFile(
       { field: "character-cards", hash: manifest["character-cards"] },
       syncedDataFiles
     );
-    const cards = JSON.parse(cardsText);
 
     cleanupStaleDataFiles(manifest, syncedDataFiles);
 
+    // 3. Cache character portrait thumbnail images
+    console.log("Parsing character list for thumbnail image caching...");
+    const characters = JSON.parse(charactersText);
+    const cards = JSON.parse(cardsText);
+    
     // Pre-build char_id -> card_id map
     const charToCard = {};
     for (const card of cards) {
