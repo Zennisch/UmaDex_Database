@@ -111,9 +111,10 @@ function getUniqueSkillIconIds(skills) {
 
   for (const skill of skills) {
     const iconId = skill?.iconid;
-    if (iconId == null) continue;
+    // GameTora uses 0 as a sentinel for skills that do not have an icon asset.
+    if (iconId == null || iconId === 0) continue;
 
-    if (!Number.isSafeInteger(iconId) || iconId <= 0) {
+    if (!Number.isSafeInteger(iconId) || iconId < 0) {
       throw new Error(`Invalid skill iconid: ${JSON.stringify(iconId)}`);
     }
 
